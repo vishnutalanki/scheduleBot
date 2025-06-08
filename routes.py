@@ -1,44 +1,44 @@
 from fastapi import APIRouter, HTTPException
-from models import LoginRequest, ChatRequest, ChatResponse
-from database import supabase
+from models import ChatRequest, ChatResponse, LoginRequest
 from ai_engine import scheduleQA
+from database import supabase
 import json
 
 router = APIRouter()
 
-# Temporary in-memory cache for schedule data
-student_data_cache = {}
-
 @router.post("/login")
 def login(request: LoginRequest):
     student_id = request.student_id
-    student_id = request.student_id.strip().upper()
     print("🧪 student_id received:", student_id)
-    # Fetch from Supabase
-    response = supabase.table("student_schedule").select("*").ilike("student_id", f"%{student_id.strip()}%").execute()
-    # response = supabase.table("student_schedule").select("*").limit(1).execute()
-    print("Test query result:", response.data)
-    
-    if not response.data:
+
+    # Validate existence of student in schedule table
+    response = supabase.table("student_schedule").select("*").eq("student_id", student_id).limit(1).execute()
+    result = response.data
+    print("🟦 Supabase raw result:", result)
+
+    if not result:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    student_data_cache[student_id] = response.data
     return {"message": "Login successful", "student_id": student_id}
 
-# @router.post("/chat")
-# def chat(request: ChatRequest):
-#     if request.student_id not in student_data_cache:
-#         raise HTTPException(status_code=403, detail="Please log in first.")
-
-#     return {"message": "Message received. Use /response to get the AI answer."}
 
 @router.post("/response", response_model=ChatResponse)
 def respond(request: ChatRequest):
-    schedule_data = student_data_cache.get(request.student_id)
-    print("🎯 schedule used in GPT:", schedule_data)
+    student_id = request.student_id
+    question = request.message
+
+    # Always pull fresh schedule data per request
+    response = supabase.table("student_schedule").select("*").ilike("student_id", f"%{student_id.strip()}%").execute()
+    
+    schedule_data = response.data
+
     if not schedule_data:
         raise HTTPException(status_code=403, detail="No schedule found. Please log in again.")
+
+    print("🎯 schedule used in GPT:", schedule_data)
+
     formatted_data = json.dumps(schedule_data, indent=2)
     print("🎯 formatted data for GPT:", formatted_data)
-    ai_answer = scheduleQA(request.message, formatted_data)
+
+    ai_answer = scheduleQA(question, formatted_data)
     return ChatResponse(answer=ai_answer)
