@@ -1,8 +1,8 @@
 import streamlit as st
 import requests
 
-st.set_page_config(page_title="Rowan Schedule Assistant", page_icon="🎓", layout="centered")
-st.title("🎓 Rowan Schedule Assistant")
+st.set_page_config(page_title="Rowan Student Schedule Assistant", page_icon="🎓", layout="centered")
+st.title("🎓 Ro - Smart Schedule Assistant")
 
 # Session state initialization
 if "student_id" not in st.session_state:
@@ -10,7 +10,6 @@ if "student_id" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Login block
 # Login block
 if not st.session_state.student_id:
     st.header("Login")
@@ -61,4 +60,4 @@ if st.session_state.messages:
         if role == "user":
             st.markdown(f"🧑‍🎓 **You**: {msg}")
         else:
-            st.markdown(f"🤖 **Bot**: {msg}")
+            st.markdown(f"🤖 **Ro**: {msg}")
