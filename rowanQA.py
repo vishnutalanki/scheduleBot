@@ -1,54 +1,64 @@
 import streamlit as st
 import requests
 
-st.set_page_config(page_title="Rowan Schedule Assistant", page_icon="🎓")
+st.set_page_config(page_title="Rowan Schedule Assistant", page_icon="🎓", layout="centered")
 st.title("🎓 Rowan Schedule Assistant")
-st.markdown("---")
 
-# --- Session state for login ---
+# Session state initialization
 if "student_id" not in st.session_state:
     st.session_state.student_id = None
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-# --- Login Block ---
-# --- Login Block ---
+# Login block
+# Login block
 if not st.session_state.student_id:
-    st.subheader("Login")
-    student_id = st.text_input("Enter your Student ID")
-
+    st.header("Login")
+    student_id_input = st.text_input("Enter your Student ID", key="login_input")
     if st.button("Login"):
-        if not student_id.strip():
-            st.warning("Please enter a valid Student ID.")
-        else:
-            response = requests.post("http://localhost:8000/login", json={"student_id": student_id})
+        if student_id_input.strip():
+            response = requests.post("http://127.0.0.1:8000/login", json={"student_id": student_id_input.strip()})
             if response.status_code == 200:
-                st.session_state.student_id = student_id
-                st.success("Logged in successfully! You can now ask a question below 👇")
+                st.session_state.student_id = student_id_input.strip()
+                st.rerun()  # 💡 Trigger script rerun to show the Q&A section right away
             else:
-                st.error(response.json().get("detail", "Login failed."))
+                st.error("Invalid student ID. Please try again.")
+        else:
+            st.warning("Please enter a valid Student ID.")
     st.stop()
 
-# --- Chat Interface (only visible after login) ---
-st.markdown("---")
-st.caption(f"Logged in as `{st.session_state.student_id}`")
-st.subheader("Ask me anything about your schedule 📅")
+# Logged-in state
+st.caption(f"Logged in as :green[{st.session_state.student_id}]")
+st.subheader("Ask me anything about your schedule 🗓️")
 
-query = st.text_input("Your question")
-
+question = st.text_input("Your question", key="question_input")
 if st.button("Ask"):
-    if not query.strip():
-        st.warning("Please enter a question.")
-    elif not st.session_state.get("student_id"):
-        st.error("You're not logged in. Please enter your student ID above.")
+    if question.strip():
+        payload = {
+            "student_id": st.session_state.student_id,
+            "message": question.strip()
+        }
+        response = requests.post("http://127.0.0.1:8000/response", json=payload)
+        if response.status_code == 200:
+            answer = response.json()["answer"]
+            st.session_state.messages.append(("user", question.strip()))
+            st.session_state.messages.append(("bot", answer))
+        else:
+            st.error(response.json()["detail"])
     else:
-        try:
-            res = requests.post("http://localhost:8000/response", json={
-                "student_id": st.session_state.student_id,
-                "message": query
-            })
-            if res.status_code == 200:
-                st.success("✅ Answer:")
-                st.write(f"🤖: {res.json()['answer']}")
-            else:
-                st.error(res.json().get("detail", "Something went wrong."))
-        except Exception as e:
-            st.error(f"Request failed: {str(e)}")
+        st.warning("Please enter a valid question.")
+
+# Display message history (latest or full)
+if st.session_state.messages:
+    show_all = st.checkbox("Show full chat history", value=False)
+
+    if not show_all:
+        messages_to_display = st.session_state.messages[-2:]
+    else:
+        messages_to_display = st.session_state.messages
+
+    for role, msg in messages_to_display:
+        if role == "user":
+            st.markdown(f"🧑‍🎓 **You**: {msg}")
+        else:
+            st.markdown(f"🤖 **Bot**: {msg}")
